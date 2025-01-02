@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exportar Datos de Google My Maps</title>
+</head>
+<body>
+    <h1>Exportar Datos de Google My Maps</h1>
+    <form id="mapForm">
+        <label for="mapUrl">URL del mapa de Google My Maps:</label><br>
+        <input type="text" id="mapUrl" placeholder="Ingresa la URL del mapa" required style="width: 100%;"><br><br>
+        <button type="submit">Descargar Datos</button>
+    </form>
+    <p id="status"></p>
+
+    <script>
+        document.getElementById('mapForm').addEventListener('submit', async function (e) {
+            e.preventDefault();
+            const mapUrl = document.getElementById('mapUrl').value.trim();
+            const status = document.getElementById('status');
+
+            try {
+                // Validar la URL ingresada
+                if (!mapUrl.includes('google.com/maps/d/')) {
+                    status.textContent = "Por favor, ingresa una URL válida de Google My Maps.";
+                    return;
+                }
+
+                // Extraer el ID del mapa de la URL
+                const mapId = mapUrl.split('/d/')[1].split('/')[0];
+                const kmlUrl = `https://www.google.com/maps/d/kml?mid=${mapId}`;
+
+                status.textContent = "Descargando y procesando datos...";
+
+                // Descargar el archivo KML
+                const response = await fetch(kmlUrl);
+                if (!response.ok) throw new Error("No se pudo descargar el archivo KML.");
+                const kmlText = await response.text();
+
+                // Convertir KML a CSV
+                const csvData = convertKMLToCSV(kmlText);
+
+                // Crear y descargar el archivo CSV
+                const blob = new Blob([csvData], { type: 'text/csv' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'mapa_datos.csv';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+
+                status.textContent = "Datos descargados exitosamente.";
+            } catch (error) {
+                status.textContent = `Error: ${error.message}`;
+            }
+        });
+
+        function convertKMLToCSV(kmlText) {
+            const parser = new DOMParser();
+            const kmlDoc = parser.parseFromString(kmlText, "application/xml");
+
+            const placemarks = kmlDoc.getElementsByTagName('Placemark');
+            const rows = [["Name", "Description", "Coordinates"]];
+
+            for (const placemark of placemarks) {
+                const name = placemark.getElementsByTagName('name')[0]?.textContent || "";
+                const description = placemark.getElementsByTagName('description')[0]?.textContent || "";
+                const coordinates = placemark.getElementsByTagName('coordinates')[0]?.textContent.trim() || "";
+                rows.push([name, description, coordinates]);
+            }
+
+            return rows.map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
+        }
+    </script>
+</body>
+</html>
